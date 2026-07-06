@@ -8,6 +8,7 @@ package parser
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/Pisush/qasmopt/ast"
 	"github.com/Pisush/qasmopt/lexer"
@@ -282,9 +283,13 @@ func (p *Parser) parseGate() (ast.Stmt, error) {
 	if p.tok.Kind == token.LPAREN {
 		p.next()
 		for {
+			exprPos := p.tok.Pos
 			v, err := p.parseExpr()
 			if err != nil {
 				return nil, err
+			}
+			if math.IsInf(v, 0) || math.IsNaN(v) {
+				return nil, errorf(exprPos, "gate parameter does not evaluate to a finite number")
 			}
 			params = append(params, v)
 			if p.tok.Kind != token.COMMA {
