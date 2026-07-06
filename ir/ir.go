@@ -72,7 +72,8 @@ func errorf(pos token.Pos, format string, args ...any) error {
 	return &Error{Pos: pos, Msg: fmt.Sprintf(format, args...)}
 }
 
-// regKind distinguishes symbol-table entries.
+// symbol is a symbol-table entry: the declared kind plus the flattened
+// register it names.
 type symbol struct {
 	kind ast.RegKind
 	reg  Reg
@@ -169,7 +170,7 @@ func (lw *lowerer) gate(s *ast.GateStmt) error {
 			return err
 		}
 		for i := 0; i < reg.Size; i++ {
-			lw.emit(Op{Name: s.Name, Qubits: []int{reg.Offset + i}, Params: s.Params})
+			lw.emit(Op{Name: s.Name, Qubits: []int{reg.Offset + i}, Params: cloneParams(s.Params)})
 		}
 		return nil
 	}
@@ -184,7 +185,7 @@ func (lw *lowerer) gate(s *ast.GateStmt) error {
 		}
 		qubits = append(qubits, q)
 	}
-	lw.emit(Op{Name: s.Name, Qubits: qubits, Params: s.Params})
+	lw.emit(Op{Name: s.Name, Qubits: qubits, Params: cloneParams(s.Params)})
 	return nil
 }
 
@@ -248,6 +249,18 @@ func (lw *lowerer) barrier(s *ast.BarrierStmt) error {
 }
 
 func (lw *lowerer) emit(op Op) { lw.prog.Ops = append(lw.prog.Ops, op) }
+
+// cloneParams copies a parameter slice so that no two IR ops (and no op
+// and its AST source) alias the same backing array. Optimizer passes may
+// therefore rewrite Params of one op without corrupting siblings.
+func cloneParams(params []float64) []float64 {
+	if len(params) == 0 {
+		return nil
+	}
+	out := make([]float64, len(params))
+	copy(out, params)
+	return out
+}
 
 // Stats counts ops by name. Barriers and measures are counted like any
 // other op under their own names.
