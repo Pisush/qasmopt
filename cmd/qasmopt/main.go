@@ -18,13 +18,15 @@ import (
 	"sort"
 
 	"github.com/Pisush/qasmopt/ir"
+	"github.com/Pisush/qasmopt/opt"
 	"github.com/Pisush/qasmopt/parser"
 )
 
 func main() {
-	stats := flag.Bool("stats", false, "print per-gate op counts to stderr")
+	stats := flag.Bool("stats", false, "print per-gate op counts (before/after optimization) to stderr")
+	noOpt := flag.Bool("no-opt", false, "disable optimization; just parse and re-emit normalized QASM")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: qasmopt [-stats] <file.qasm | ->\n")
+		fmt.Fprintf(os.Stderr, "usage: qasmopt [-stats] [-no-opt] <file.qasm | ->\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -32,15 +34,17 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(flag.Arg(0), *stats, os.Stdin, os.Stdout, os.Stderr); err != nil {
+	if err := run(flag.Arg(0), *stats, !*noOpt, os.Stdin, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "qasmopt: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 // run does the actual work so tests can exercise it without os.Exit.
-// stdin is read only when path is "-".
-func run(path string, stats bool, stdin io.Reader, out, errOut io.Writer) error {
+// stdin is read only when path is "-". When optimize is true the peephole
+// passes run to fixpoint before emitting; with stats, before/after op counts
+// are printed to stderr.
+func run(path string, stats, optimize bool, stdin io.Reader, out, errOut io.Writer) error {
 	var src []byte
 	var err error
 	if path == "-" {
@@ -62,7 +66,13 @@ func run(path string, stats bool, stdin io.Reader, out, errOut io.Writer) error 
 	}
 
 	if stats {
-		printStats(errOut, "ops", ir.Stats(prog.Ops))
+		printStats(errOut, "before", ir.Stats(prog.Ops))
+	}
+	if optimize {
+		prog.Ops = opt.Optimize(prog.Ops)
+	}
+	if stats {
+		printStats(errOut, "after", ir.Stats(prog.Ops))
 	}
 	return prog.WriteQASM(out)
 }
