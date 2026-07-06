@@ -1,0 +1,5 @@
+qasmopt
+/qasmopt
+*.test
+*.out
+.DS_Store
