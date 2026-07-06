@@ -16,7 +16,15 @@ measure q[0] -> c[0];
 measure q[1] -> c[1];
 `
 
-const wantBellStats = `ops:
+// The Bell circuit has no cancellable/mergeable gates (barrier fences it), so
+// before and after op counts are identical.
+const wantBellStats = `before:
+  barrier  1
+  cx       1
+  h        1
+  measure  2
+  total    5
+after:
   barrier  1
   cx       1
   h        1
@@ -26,7 +34,7 @@ const wantBellStats = `ops:
 
 func TestRunGolden(t *testing.T) {
 	var out, errOut strings.Builder
-	if err := run("../../examples/bell.qasm", true, nil, &out, &errOut); err != nil {
+	if err := run("../../examples/bell.qasm", true, true, nil, &out, &errOut); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if out.String() != wantBell {
@@ -40,7 +48,7 @@ func TestRunGolden(t *testing.T) {
 func TestRunStdin(t *testing.T) {
 	var out, errOut strings.Builder
 	in := strings.NewReader("OPENQASM 2.0;\nqreg q[1];\nx q[0];\n")
-	if err := run("-", false, in, &out, &errOut); err != nil {
+	if err := run("-", false, true, in, &out, &errOut); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if !strings.Contains(out.String(), "x q[0];\n") {
@@ -65,7 +73,7 @@ func TestRunErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out, errOut strings.Builder
-			err := run(tt.path, false, strings.NewReader(tt.in), &out, &errOut)
+			err := run(tt.path, false, true, strings.NewReader(tt.in), &out, &errOut)
 			if err == nil {
 				t.Fatalf("run succeeded, want error containing %q", tt.want)
 			}
